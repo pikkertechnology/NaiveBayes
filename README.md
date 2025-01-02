@@ -4,14 +4,16 @@ This is a Naive Bayes model written in rust that reads the text from PDF files.
 
 ## Training
 
-To train the model, you need a `.csv` file where each line contains the path to the PDF file and a class that is corret for this file.
-Seperate those two with a commma.
+To train the model, prepare a `.csv` file where each line specifies the path to a PDF file and its corresponding class label.
+Separate the file path and class label with a comma.
+
 Example:
 ```csv
 /path/to/a/file,class
 ```
 
-Then run this command:
+Run the following command to start training:
 ```bash
 cargo run path/to/pdf_files.csv
 ```
+Ensure that the paths in the CSV file are correct and accessible to the program.
