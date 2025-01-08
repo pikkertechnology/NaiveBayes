@@ -1,24 +1,29 @@
-use std::collections::HashMap;
+use std::fs;
+use actix_multipart::form::{tempfile::TempFile, MultipartForm, text::Text};
+use actix_web::{post, HttpResponse, Responder};
 
-#[derive(Default)]
-pub struct NaiveBayes {
-    word_counts: HashMap<String, HashMap<String, usize>>,
-    subject_counts: HashMap<String, usize>,
-    total_number_of_input: usize,
+#[derive(Debug, MultipartForm)]
+struct UploadForm {
+    file: TempFile,
+    class: Text<String>,
 }
 
-impl NaiveBayes {
-    pub fn new() -> Self {
-        Self::default()
-    }
+#[post("/train")]
+async fn train(MultipartForm(form): MultipartForm<UploadForm>) -> impl Responder {
+    let file_content = fs::read_to_string(&form.file.file.path())
+        .unwrap_or_else(|_| "Failed to read file".to_string());
+    let file_type = form.file.content_type.as_ref().unwrap();
 
-    pub fn train(&mut self, words: &[String], subject: &str) {
-        self.total_number_of_input += 1;
-        *self.subject_counts.entry(subject.to_string()).or_insert(0) += 1;
+    format!(
+        "Uploaded file with class: {}, size: {} bytes, type: {}, with content: {}",
+        form.class.as_str(),
+        form.file.size,
+        file_type,
+        file_content
+    )
+}
 
-        for word in words {
-            let subject_map = self.word_counts.entry(subject.to_string()).or_default();
-            *subject_map.entry(word.to_string()).or_insert(0) += 1;
-        }
-    }
+#[post("/predict")]
+async fn predict(req_body: String) -> impl Responder {
+    HttpResponse::Ok().body(req_body)
 }
