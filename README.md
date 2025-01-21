@@ -1,6 +1,6 @@
 # Naive Bayes
 
-This is a Naive Bayes model written in rust that reads the text from PDF files.
+This is a Naive Bayes model trainer and predicter written in rust that reads the text from PDF files. This project is part of [study material sharing website](https://openabi.ee) where it is used for classifying different categories of uploaded material.    
 
 ## Training
 
