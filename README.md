@@ -1,19 +1,9 @@
 # Naive Bayes
 
-This is a Naive Bayes model trainer and predicter written in rust that reads the text from PDF files. This project is part of [study material sharing website](https://openabi.ee) where it is used for classifying different categories of uploaded material.    
+This is a Naive Bayes classifier model written in rust that reads the text from a file. This project is part of [study material sharing website](https://openabi.ee) where it is used for classifying different categories of uploaded material.    
 
-## Training
+## How it works
 
-To train the model, prepare a `.csv` file where each line specifies the path to a PDF file and its corresponding class label.
-Separate the file path and class label with a comma.
+The model has 2 endpoints: **train** and **predict**
 
-Example:
-```csv
-/path/to/a/file,class
-```
-
-Run the following command to start training:
-```bash
-cargo run path/to/pdf_files.csv
-```
-Ensure that the paths in the CSV file are correct and accessible to the program.
+We use endpoints so that the model can be used in a *docker container*.
