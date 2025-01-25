@@ -14,6 +14,6 @@ The train endpoint is ```localhost:8080/train```. In the body there are 2 expect
 1. **file** - the file itself
 2. **class** - the class that the file should be classified as
 
-The answer is either ´´´Model successfully trained and data saved!´´´ or an error message.
+The answer is either `Model successfully trained and data saved!` or an error message.
 
 ## Predict
