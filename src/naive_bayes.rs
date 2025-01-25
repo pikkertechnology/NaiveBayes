@@ -1,30 +1,25 @@
 use super::utils::extract_file_content;
 use actix_multipart::form::tempfile::TempFile;
 use serde::{Deserialize, Serialize};
+use core::f64;
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
-use std::intrinsics::mir::Len;
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
 #[derive(Serialize, Deserialize)]
 pub struct NaiveBayesModel {
-    // Prior probabilities for each class
-    class_priors: HashMap<String, f64>,
-
-    // Conditional probabilities: class -> feature -> probability
-    feature_probabilities: HashMap<String, HashMap<String, f64>>,
-
-    // Feature counts for potential updates
-    feature_counts: HashMap<String, HashMap<String, u32>>,
-
-    // Class sample counts
+    // class -> feature -> count
+    class_feature_counts: HashMap<String, HashMap<String, u32>>,
+    // class -> count
     class_counts: HashMap<String, u32>,
 
-    // Metadata
-    total_samples: u32,
+    // all classes
     classes: HashSet<String>,
-    vocabulary: HashSet<String>,
+    // all features
+    features: HashSet<String>,
+    // count of samples
+    samples_count: u32,
 }
 
 impl NaiveBayesModel {
@@ -99,12 +94,11 @@ impl NaiveBayesModel {
 
         println!("Creating new empty model");
         NaiveBayesModel {
-            class_priors: HashMap::new(),
-            feature_probabilities: HashMap::new(),
-            feature_counts: HashMap::new(),
-            total_samples: 0,
+            class_feature_counts: HashMap::new(),
+            class_counts: HashMap::new(),
             classes: HashSet::new(),
-            vocabulary: HashSet::new(),
+            features: HashSet::new(),
+            samples_count: 0,
         }
     }
 
@@ -116,14 +110,12 @@ impl NaiveBayesModel {
     }
 
     pub fn train(&mut self, file: TempFile, class: String) -> Result<String, String> {
-        let file_content = extract_file_content(&file);
-        let file_content = match file_content {
+        let file_content = match extract_file_content(&file) {
             Ok(content) => content,
-            Err(_) => return file_content
+            Err(err) => return Err(err.to_string())
         };
 
-        self.collect_data(file_content, class);
-
+        self.collect_data(&file_content, &class);
 
         match self.save() {
             Ok(_) => Ok("Model successfully trained and data saved!".to_string()),
@@ -131,15 +123,56 @@ impl NaiveBayesModel {
         }
     }
 
-    fn collect_data(&mut self, text: String, class: String) {
-        self.total_samples += 1;
-        self.classes.insert(class.clone());
-        *self.class_counts.entry(class.clone()).or_default() += 1;
+    fn collect_data(&mut self, text: &str, class: &str) {
+        self.samples_count += 1;
 
-        let features = text.split(" ");
+        self.classes.insert(class.to_string());
+        *self.class_counts.entry(class.to_string()).or_insert(0) += 1;
 
-        for feature in features {
+        let feature_counts = self.class_feature_counts.entry(class.to_string()).or_insert(HashMap::new());
 
+        for feature in text.split_whitespace() {
+            let feature = feature.to_lowercase();
+            self.features.insert(feature.clone());
+            *feature_counts.entry(feature).or_insert(0) += 1;
         }
+    }
+
+    pub fn predict(&self, file: TempFile) -> Result<String, String> {
+        let file_content = match extract_file_content(&file) {
+            Ok(content) => content,
+            Err(err) => return Err(err.to_string())
+        };
+
+        let mut best_class = String::new();
+        let mut best_probability = f64::NEG_INFINITY;
+
+        for class in &self.classes {
+            let probability = self.calculate_probability(&file_content, &class);
+            if probability > best_probability {
+                best_class = class.to_string();
+                best_probability = probability;
+            }
+        }
+
+        return Ok(best_class)
+    }
+
+    fn calculate_probability(&self, text: &str, class: &str) -> f64 {
+        let class_count = *self.class_counts.get(class).unwrap_or(&0);
+        let prior_probability = (class_count as f64 / self.samples_count as f64).ln();
+
+        let feature_counts = self.class_feature_counts.get(class).unwrap();
+        let total_features_in_class: u32 = feature_counts.values().sum();
+        let all_features_count = self.features.len() as u32;
+
+        let mut likelihood = 0.0;
+        for feature in text.split_whitespace() {
+            let feature = feature.to_lowercase();
+            let feature_count = *feature_counts.get(&feature).unwrap_or(&0);
+            likelihood += ((feature_count + 1) as f64 / (total_features_in_class + all_features_count) as f64).ln();
+        }
+
+        return prior_probability + likelihood
     }
 }

@@ -11,9 +11,14 @@ struct AppState {
 }
 
 #[derive(Debug, MultipartForm)]
-struct UploadForm {
+struct TrainForm {
     file: TempFile,
     class: Text<String>,
+}
+
+#[derive(Debug, MultipartForm)]
+struct PredictForm {
+    file: TempFile,
 }
 
 #[actix_web::main]
@@ -36,7 +41,7 @@ async fn main() -> std::io::Result<()> {
 
 #[post("/train")]
 async fn train(
-    MultipartForm(form): MultipartForm<UploadForm>,
+    MultipartForm(form): MultipartForm<TrainForm>,
     data: web::Data<AppState>,
 ) -> impl Responder {
     let class = form.class.to_string();
@@ -53,6 +58,17 @@ async fn train(
 }
 
 #[post("/predict")]
-async fn predict(req_body: String) -> impl Responder {
-    HttpResponse::Ok().body(req_body)
+async fn predict(MultipartForm(form): MultipartForm<PredictForm>, data: web::Data<AppState>,
+) -> impl Responder {
+    let file = form.file;
+
+    match data.model.lock() {
+        Ok(model) => {
+            let result = model.predict(file);
+            HttpResponse::Ok().body(result.unwrap())
+        }
+        Err(e) => HttpResponse::InternalServerError().body(format!("Failed to acquire lock on model: {}", e))
+        
+    }
+
 }
