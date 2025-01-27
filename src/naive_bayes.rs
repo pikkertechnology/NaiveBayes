@@ -1,8 +1,6 @@
-use super::utils::extract_file_content;
-use actix_multipart::form::tempfile::TempFile;
-use log::{info, warn, error, debug};
-use serde::{Deserialize, Serialize};
 use core::f64;
+use log::{debug, error, info, warn};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter};
@@ -39,26 +37,29 @@ impl NaiveBayesModel {
     fn save_to_file<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
         let file = File::create(path)?;
         let writer = BufWriter::new(file);
-        
+
         bincode::serialize_into(writer, self)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
-    
+
     fn load_from_file<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
-        
+
         bincode::deserialize_from(reader)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 
     pub fn new() -> Self {
         let paths = Self::get_default_paths();
-        
+
         match paths {
             Ok(bin_path) => {
                 if let Ok(model) = Self::load_from_file(&bin_path) {
-                    info!("Loaded model from a binary with path: {}", bin_path.display());
+                    info!(
+                        "Loaded model from a binary with path: {}",
+                        bin_path.display()
+                    );
                     return model;
                 }
             }
@@ -83,17 +84,8 @@ impl NaiveBayesModel {
         Ok(())
     }
 
-    pub fn train(&mut self, file: TempFile, class: String) -> Result<String, String> {
-        let file_content = match extract_file_content(&file) {
-            Ok(content) => content,
-            Err(err) => {
-                error!("Could not extract the file's content: {err}");
-                return Err(err.to_string())
-            }
-        };
-        debug!("Successfully extracted file's content.");
-
-        info!("File '{}' with class '{}' was given for training", file.file_name.unwrap(), class);
+    pub fn train(&mut self, file_content: String, class: String) -> Result<String, String> {
+        info!("Text with class '{}' was given for training", class);
 
         debug!("Starting to collect data.");
         self.collect_data(&file_content, &class);
@@ -103,7 +95,7 @@ impl NaiveBayesModel {
             Ok(_) => {
                 info!("Model successfully trained and data saved!");
                 Ok("Model successfully trained and data saved!".to_string())
-            },
+            }
             Err(err) => {
                 error!("Something went wrong with saving: {err}");
                 Err(err.to_string())
@@ -117,7 +109,10 @@ impl NaiveBayesModel {
         self.classes.insert(class.to_string());
         *self.class_counts.entry(class.to_string()).or_insert(0) += 1;
 
-        let feature_counts = self.class_feature_counts.entry(class.to_string()).or_insert(HashMap::new());
+        let feature_counts = self
+            .class_feature_counts
+            .entry(class.to_string())
+            .or_insert(HashMap::new());
 
         for feature in text.split_whitespace() {
             let feature = feature.to_lowercase();
@@ -126,24 +121,15 @@ impl NaiveBayesModel {
         }
     }
 
-    pub fn predict(&self, file: TempFile) -> Result<String, String> {
-        let file_content = match extract_file_content(&file) {
-            Ok(content) => content,
-            Err(err) => {
-                error!("Could not extract the file's content: {err}");
-                return Err(err.to_string())
-            }
-        };
-        debug!("Successfully extracted file's content.");
-
-        info!("File '{}' was given for predicting", file.file_name.clone().unwrap());
+    pub fn predict(&self, text: String) -> Result<String, String> {
+        info!("Text was given for predicting");
 
         let mut best_class = String::new();
         let mut best_probability = f64::NEG_INFINITY;
 
         debug!("Starting to predict class.");
         for class in &self.classes {
-            let probability = self.calculate_probability(&file_content, &class);
+            let probability = self.calculate_probability(&text, &class);
             if probability > best_probability {
                 best_class = class.to_string();
                 best_probability = probability;
@@ -151,8 +137,8 @@ impl NaiveBayesModel {
         }
         debug!("Class predicting finished.");
 
-        info!("The prediction for file '{}' was '{}'", file.file_name.unwrap(), best_class);
-        return Ok(best_class)
+        info!("The prediction for file was '{}'", best_class);
+        return Ok(best_class);
     }
 
     fn calculate_probability(&self, text: &str, class: &str) -> f64 {
@@ -167,9 +153,11 @@ impl NaiveBayesModel {
         for feature in text.split_whitespace() {
             let feature = feature.to_lowercase();
             let feature_count = *feature_counts.get(&feature).unwrap_or(&0);
-            likelihood += ((feature_count + 1) as f64 / (total_features_in_class + all_features_count) as f64).ln();
+            likelihood += ((feature_count + 1) as f64
+                / (total_features_in_class + all_features_count) as f64)
+                .ln();
         }
 
-        return prior_probability + likelihood
+        return prior_probability + likelihood;
     }
 }

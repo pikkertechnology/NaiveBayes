@@ -1,26 +1,24 @@
-use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
-use actix_web::{post, web, HttpResponse, Responder};
-use actix_web::{App, HttpServer};
-use log::{error, info, debug};
+use actix_web::{post, web, HttpResponse, Responder, App, HttpServer};
+use log::{debug, error, info};
 use naive_bayes::NaiveBayesModel;
+use serde::Deserialize;
 use std::env;
 use std::sync::Mutex;
 mod naive_bayes;
-mod utils;
 
 struct AppState {
     model: Mutex<NaiveBayesModel>,
 }
 
-#[derive(Debug, MultipartForm)]
+#[derive(Deserialize)]
 struct TrainForm {
-    file: TempFile,
-    class: Text<String>,
+    text: String,
+    class: String,
 }
 
-#[derive(Debug, MultipartForm)]
+#[derive(Deserialize)]
 struct PredictForm {
-    file: TempFile,
+    text: String,
 }
 
 #[actix_web::main]
@@ -47,49 +45,45 @@ async fn main() -> std::io::Result<()> {
 }
 
 #[post("/train")]
-async fn train(
-    MultipartForm(form): MultipartForm<TrainForm>,
-    data: web::Data<AppState>,
-) -> impl Responder {
+async fn train(form: web::Json<TrainForm>, data: web::Data<AppState>) -> impl Responder {
     info!("A train request recieved.");
 
-    let class = form.class.to_string();
-    let file = form.file;
+    let class = &form.class;
+    let text = &form.text;
 
     match data.model.lock() {
         Ok(mut model) => {
             debug!("Aquired lock on the model successfully.");
 
-            let result = model.train(file, class);
+            let result = model.train(text.to_string(), class.to_string());
             HttpResponse::Ok().body(result.unwrap())
         }
         Err(e) => {
             error!("Failed to aquire lock on model: {e}");
 
             HttpResponse::InternalServerError()
-            .body(format!("Failed to acquire lock on model: {}", e))
+                .body(format!("Failed to acquire lock on model: {}", e))
         }
     }
 }
 
 #[post("/predict")]
-async fn predict(MultipartForm(form): MultipartForm<PredictForm>, data: web::Data<AppState>,
-) -> impl Responder {
+async fn predict(form: web::Json<PredictForm>, data: web::Data<AppState>) -> impl Responder {
     info!("A predict request recieved.");
-    let file = form.file;
+    let text = &form.text;
 
     match data.model.lock() {
         Ok(model) => {
             debug!("Aquired lock on the model successfully.");
 
-            let result = model.predict(file);
+            let result = model.predict(text.to_string());
             HttpResponse::Ok().body(result.unwrap())
         }
         Err(e) => {
             error!("Failed to aquire lock on model: {e}");
 
             HttpResponse::InternalServerError()
-            .body(format!("Failed to acquire lock on model: {}", e))
+                .body(format!("Failed to acquire lock on model: {}", e))
         }
     }
 }
