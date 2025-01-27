@@ -1,0 +1,11 @@
+**/.dockerignore
+**/.env
+**/.git
+**/.gitignore
+**/compose.y*ml
+**/Dockerfile*
+/bin
+/model
+/target
+LICENSE
+README.md
