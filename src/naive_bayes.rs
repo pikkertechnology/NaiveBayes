@@ -1,5 +1,6 @@
 use super::utils::extract_file_content;
 use actix_multipart::form::tempfile::TempFile;
+use log::{info, warn, error, debug};
 use serde::{Deserialize, Serialize};
 use core::f64;
 use std::collections::{HashMap, HashSet};
@@ -29,11 +30,10 @@ impl NaiveBayesModel {
         Ok(model_dir)
     }
 
-    fn get_default_paths() -> std::io::Result<(PathBuf, PathBuf)> {
+    fn get_default_paths() -> std::io::Result<PathBuf> {
         let model_dir = Self::get_model_dir()?;
         let bin_path = model_dir.join("model.bin");
-        let json_path = model_dir.join("model.json");
-        Ok((bin_path, json_path))
+        Ok(bin_path)
     }
 
     fn save_to_file<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
@@ -51,48 +51,23 @@ impl NaiveBayesModel {
         bincode::deserialize_from(reader)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
-    
-    fn save_to_json<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
-        let file = File::create(path)?;
-        let writer = BufWriter::new(file);
-        
-        serde_json::to_writer_pretty(writer, self)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-    }
-    
-    fn load_from_json<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
-        let file = File::open(path)?;
-        let reader = BufReader::new(file);
-        
-        serde_json::from_reader(reader)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-    }
 
     pub fn new() -> Self {
         let paths = Self::get_default_paths();
         
         match paths {
-            Ok((bin_path, json_path)) => {
-                if bin_path.exists() {
-                    if let Ok(model) = Self::load_from_file(&bin_path) {
-                        println!("Loaded model from: {}", bin_path.display());
-                        return model;
-                    }
-                }
-
-                if json_path.exists() {
-                    if let Ok(model) = Self::load_from_json(&json_path) {
-                        println!("Loaded model from: {}", json_path.display());
-                        return model;
-                    }
+            Ok(bin_path) => {
+                if let Ok(model) = Self::load_from_file(&bin_path) {
+                    info!("Loaded model from a binary with path: {}", bin_path.display());
+                    return model;
                 }
             }
             Err(e) => {
-                println!("Warning: Could not determine model directory: {}", e);
+                warn!("Could not determine model directory: {e}");
             }
         }
 
-        println!("Creating new empty model");
+        info!("Creating a new empty model.");
         NaiveBayesModel {
             class_feature_counts: HashMap::new(),
             class_counts: HashMap::new(),
@@ -103,23 +78,36 @@ impl NaiveBayesModel {
     }
 
     pub fn save(&self) -> std::io::Result<()> {
-        let (bin_path, json_path) = Self::get_default_paths()?;
+        let bin_path = Self::get_default_paths()?;
         self.save_to_file(&bin_path)?;
-        self.save_to_json(&json_path)?;
         Ok(())
     }
 
     pub fn train(&mut self, file: TempFile, class: String) -> Result<String, String> {
         let file_content = match extract_file_content(&file) {
             Ok(content) => content,
-            Err(err) => return Err(err.to_string())
+            Err(err) => {
+                error!("Could not extract the file's content: {err}");
+                return Err(err.to_string())
+            }
         };
+        debug!("Successfully extracted file's content.");
 
+        info!("File '{}' with class '{}' was given for training", file.file_name.unwrap(), class);
+
+        debug!("Starting to collect data.");
         self.collect_data(&file_content, &class);
+        debug!("Data collecting finished.");
 
         match self.save() {
-            Ok(_) => Ok("Model successfully trained and data saved!".to_string()),
-            Err(err) => Err(err.to_string()),
+            Ok(_) => {
+                info!("Model successfully trained and data saved!");
+                Ok("Model successfully trained and data saved!".to_string())
+            },
+            Err(err) => {
+                error!("Something went wrong with saving: {err}");
+                Err(err.to_string())
+            }
         }
     }
 
@@ -141,12 +129,19 @@ impl NaiveBayesModel {
     pub fn predict(&self, file: TempFile) -> Result<String, String> {
         let file_content = match extract_file_content(&file) {
             Ok(content) => content,
-            Err(err) => return Err(err.to_string())
+            Err(err) => {
+                error!("Could not extract the file's content: {err}");
+                return Err(err.to_string())
+            }
         };
+        debug!("Successfully extracted file's content.");
+
+        info!("File '{}' was given for predicting", file.file_name.clone().unwrap());
 
         let mut best_class = String::new();
         let mut best_probability = f64::NEG_INFINITY;
 
+        debug!("Starting to predict class.");
         for class in &self.classes {
             let probability = self.calculate_probability(&file_content, &class);
             if probability > best_probability {
@@ -154,7 +149,9 @@ impl NaiveBayesModel {
                 best_probability = probability;
             }
         }
+        debug!("Class predicting finished.");
 
+        info!("The prediction for file '{}' was '{}'", file.file_name.unwrap(), best_class);
         return Ok(best_class)
     }
 
