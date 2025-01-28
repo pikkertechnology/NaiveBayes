@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
+use chrono;
 
 #[derive(Serialize, Deserialize)]
 pub struct NaiveBayesModel {
@@ -28,10 +29,13 @@ impl NaiveBayesModel {
         Ok(model_dir)
     }
 
-    fn get_default_paths() -> std::io::Result<PathBuf> {
+    fn get_default_paths(class: &str) -> std::io::Result<(PathBuf, PathBuf)> {
         let model_dir = Self::get_model_dir()?;
-        let bin_path = model_dir.join("model.bin");
-        Ok(bin_path)
+        let latest_path = model_dir.clone().join("model.bin");
+
+        let timestamp = chrono::offset::Utc::now().format("%Y-%m-%d--%H-%M-%S").to_string();
+        let version_path = model_dir.join(format!("model--{}--{}.bin", class, timestamp));
+        Ok((latest_path, version_path))
     }
 
     fn save_to_file<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
@@ -51,14 +55,14 @@ impl NaiveBayesModel {
     }
 
     pub fn new() -> Self {
-        let paths = Self::get_default_paths();
+        let paths = Self::get_default_paths("_");
 
         match paths {
-            Ok(bin_path) => {
-                if let Ok(model) = Self::load_from_file(&bin_path) {
+            Ok((latest_path, _)) => {
+                if let Ok(model) = Self::load_from_file(&latest_path) {
                     info!(
                         "Loaded model from a binary with path: {}",
-                        bin_path.display()
+                        latest_path.display()
                     );
                     return model;
                 }
@@ -78,9 +82,10 @@ impl NaiveBayesModel {
         }
     }
 
-    pub fn save(&self) -> std::io::Result<()> {
-        let bin_path = Self::get_default_paths()?;
-        self.save_to_file(&bin_path)?;
+    pub fn save(&self, class: &str) -> std::io::Result<()> {
+        let (latest_path, version_path) = Self::get_default_paths(class)?;
+        self.save_to_file(&latest_path)?;
+        self.save_to_file(&version_path)?;
         Ok(())
     }
 
@@ -91,7 +96,7 @@ impl NaiveBayesModel {
         self.collect_data(&file_content, &class);
         debug!("Data collecting finished.");
 
-        match self.save() {
+        match self.save(&class) {
             Ok(_) => {
                 info!("Model successfully trained and data saved!");
                 Ok("Model successfully trained and data saved!".to_string())
