@@ -18,8 +18,13 @@ RUN --mount=type=bind,source=src,target=src \
 
 FROM alpine:3.18 AS final
 
+COPY cleanup.sh /usr/local/bin/cleanup.sh
+RUN chmod +x /usr/local/bin/cleanup.sh
+
+RUN echo "0 0 * * * /usr/local/bin/cleanup.sh" >> /var/spool/cron/crontabs/root
+
 COPY --from=build /bin/naivebayes /bin/
 
 EXPOSE 8080
 
-CMD ["/bin/naivebayes"]
+CMD crond -b && /bin/naivebayes
