@@ -23,18 +23,20 @@ pub struct NaiveBayesModel {
 }
 
 impl NaiveBayesModel {
-    fn get_model_dir() -> std::io::Result<PathBuf> {
+    fn get_model_dirs() -> std::io::Result<(PathBuf, PathBuf)> {
         let model_dir = PathBuf::from("model");
+        let version_dir = PathBuf::from("model/versions");
         fs::create_dir_all(&model_dir)?;
-        Ok(model_dir)
+        fs::create_dir_all(&version_dir)?;
+        Ok((model_dir, version_dir))
     }
 
     fn get_default_paths(class: &str) -> std::io::Result<(PathBuf, PathBuf)> {
-        let model_dir = Self::get_model_dir()?;
-        let latest_path = model_dir.clone().join("model.bin");
+        let (model_dir, version_dir) = Self::get_model_dirs()?;
+        let latest_path = model_dir.join("model.bin");
 
         let timestamp = chrono::offset::Utc::now().format("%Y-%m-%d--%H-%M-%S").to_string();
-        let version_path = model_dir.join(format!("model--{}--{}.bin", class, timestamp));
+        let version_path = version_dir.join(format!("model--{}--{}.bin", class, timestamp));
         Ok((latest_path, version_path))
     }
 
