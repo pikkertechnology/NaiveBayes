@@ -3,5 +3,7 @@ services:
     build:
       context: .
       target: final
+    environment:
+      - RUST_LOG=info
     ports:
       - 8080:8080

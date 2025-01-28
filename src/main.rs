@@ -2,7 +2,6 @@ use actix_web::{post, web, HttpResponse, Responder, App, HttpServer};
 use log::{debug, error, info};
 use naive_bayes::NaiveBayesModel;
 use serde::Deserialize;
-use std::env;
 use std::sync::Mutex;
 mod naive_bayes;
 
@@ -23,7 +22,6 @@ struct PredictForm {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env::set_var("RUST_LOG", "info");
     env_logger::init();
 
     info!("Starting the model.");
