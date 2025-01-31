@@ -6,6 +6,7 @@ use std::fs::{self, File};
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 use chrono;
+use regex::Regex;
 
 #[derive(Serialize, Deserialize)]
 pub struct NaiveBayesModel {
@@ -121,8 +122,10 @@ impl NaiveBayesModel {
             .entry(class.to_string())
             .or_insert(HashMap::new());
 
+        let re = Regex::new("[!?.,\"']").unwrap();
+
         for feature in text.split_whitespace() {
-            let feature = feature.to_lowercase();
+            let feature = re.replace_all(&feature.to_lowercase(), "").to_string();
             self.features.insert(feature.clone());
             *feature_counts.entry(feature).or_insert(0) += 1;
         }
@@ -156,9 +159,11 @@ impl NaiveBayesModel {
         let total_features_in_class: u32 = feature_counts.values().sum();
         let all_features_count = self.features.len() as u32;
 
+        let re = Regex::new("[!?.,\"']").unwrap();
+
         let mut likelihood = 0.0;
         for feature in text.split_whitespace() {
-            let feature = feature.to_lowercase();
+            let feature = re.replace_all(&feature.to_lowercase(), "").to_string();
             let feature_count = *feature_counts.get(&feature).unwrap_or(&0);
             likelihood += ((feature_count + 1) as f64
                 / (total_features_in_class + all_features_count) as f64)
