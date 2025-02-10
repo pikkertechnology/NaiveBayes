@@ -1,30 +1,35 @@
 # Naive Bayes
 
-This is a Naive Bayes classifier model written in rust. This project is part of [study material sharing website](https://openabi.ee) where it is used for classifying different categories of uploaded material.
+This is a Naive Bayes classifier model written in Rust. It is part of the [Study Material Sharing Website](https://openabi.ee), where it is used to classify different categories of uploaded materials.
 
-## How it works
+## How It Works
 
-The model has 2 endpoints: **train** and **predict**.
+The model provides two endpoints: **train** and **predict**. These endpoints allow the model to function seamlessly within a [***Docker container***](https://www.docker.com/). The endpoints are implemented using [Actix Web](https://actix.rs/).
 
-We use endpoints so that the model can be used in a [***docker container***](https://www.docker.com/). The endpoints are realized with [Actix web](https://actix.rs/).
+The model saves its state to a `.bin` file in the `/model` folder. Each training session is saved as a separate version, making it easy to roll back to a previous model state.
 
-The model saves it's self to a `.bin` file in a `/model` foler. Also each training is saved as a seperate version, so rolling a model back few versions is easy.
+## Technologies Used
 
-## Used technologies
- - Rust (2021)
- - Actix web (4.9)
- - Bincode (1.3)
+- **Rust** (2021 Edition)
+- **Actix Web** (4.9)
+- **Bincode** (1.3)
 
-## Train
+## Endpoints
 
-The train (POST) endpoint is ```localhost:8080/train```. In the request body (JSON) there are 2 expected fields:
-1. **text** - the text for training
-2. **class** - the class that the text should be classified as
+### Train Endpoint
 
-The response is either `Model successfully trained and data saved!` or an error message.
+**URL:** `localhost:8080/train`  
+**Method:** POST  
 
-### Example
+The train endpoint expects a JSON request body with the following fields:
 
+1. **text** - The training text.
+2. **class** - The category to which the text should be classified.
+
+**Response:**  
+Returns either `Model successfully trained and data saved!` or an error message.
+
+#### Example Request:
 ```json
 {
     "text": "This is an example text.",
@@ -32,29 +37,31 @@ The response is either `Model successfully trained and data saved!` or an error 
 }
 ```
 
+### Predict Endpoint
 
-## Predict
+**URL:** `localhost:8080/predict`  
+**Method:** POST  
 
-The predict (POST) endpoint is ```localhost:8080/predict```. In the request body (JSON) there is 1 expected field:
-1. **text** - the text that's class is predicted
+The predict endpoint expects a JSON request body with the following field:
 
-The response is either the predicted class or an error message.
+1. **text** - The text whose class is to be predicted.
 
-### Example
+**Response:**  
+Returns the predicted class or an error message.
 
+#### Example Request:
 ```json
 {
-    "text": "This is another example text"
+    "text": "This is another example text."
 }
 ```
 
-## Saving and loading
+## Saving and Loading
 
-As said before the model saves it self after every training.
+The model automatically saves its state after each training session. The primary save file is `model.bin`, located in the `/model` folder. This file represents the latest state of the model and is overwritten with each save.
 
-The `model.bin` binary is the latest state of the model and this gets overwritten on each save.
-
-```
+### File Structure:
+```plaintext
 any-directory/
 ├── NaiveBayes
 ├── model/
@@ -64,10 +71,27 @@ any-directory/
 |       └── ...
 ```
 
-When the model is initialized it searches for a `/model` folder in the same directory as the model is in. The binary that is loaded on the initialization is `/model/model.bin`.
+### Initialization:
 
-If the model does not find `/model` folder it will create it.
+When initialized, the model searches for a `/model` folder in the same directory as the executable. If the folder does not exist, it will be created automatically. The binary file `/model/model.bin` is loaded during initialization.
 
-In order to run a version an older version of the model, the version should be renamed to `model.bin` and put in the `/model` folder instead of the latest one.
+### Rolling Back:
 
-Also the version files are not necessary and can be deleted at any moment.
+To use an older version of the model, rename the desired version file to `model.bin` and place it in the `/model` folder, replacing the current file. Note that the version files are optional and can be deleted at any time.
+
+## Training the Model
+
+The recommended way to train the model is locally. Follow these steps:
+
+1. Build the Naive Bayes binary using:
+   ```bash
+   cargo build --release
+   ```
+2. Run the binary from the `/target/release/` directory. This will start the server and open the endpoints for training.
+
+### Post-Training:
+
+After training, the `/model/model.bin` file is the only important artifact. You can delete everything else, including the compiled binary.
+
+To deploy the trained model, place the `model.bin` file into a Docker container. This ensures the model is ready for usage without further configuration.
+The file should be put in a `/model` folder alongside the `NaiveBayes` binary.
