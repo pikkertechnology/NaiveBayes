@@ -46,7 +46,7 @@ async fn main() -> std::io::Result<()> {
 async fn train(form: web::Json<TrainForm>, data: web::Data<AppState>) -> impl Responder {
     info!("A train request recieved.");
 
-    let class = &form.class;
+    let class = &form.class.to_lowercase();
     let text = &form.text;
 
     match data.model.lock() {
